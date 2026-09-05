@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { basename, isAbsolute, relative, resolve } from 'node:path'
 
 export interface PageEntry {
   path: string
@@ -196,15 +196,70 @@ function directComponentPath(block: string): string | undefined {
   return undefined
 }
 
+function routesArraySource(source: string): string {
+  const declaration = /\b(?:const|let|var)\s+routes\s*=\s*\[/.exec(source)
+  if (!declaration) return ''
+
+  const start = declaration.index + declaration[0].length - 1
+  let depth = 0
+  let quote = ''
+  let lineComment = false
+  let blockComment = false
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index]
+    const next = source[index + 1]
+
+    if (lineComment) {
+      if (char === '\n') lineComment = false
+      continue
+    }
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false
+        index += 1
+      }
+      continue
+    }
+    if (quote) {
+      if (char === '\\') index += 1
+      else if (char === quote) quote = ''
+      continue
+    }
+    if (char === '/' && next === '/') {
+      lineComment = true
+      index += 1
+      continue
+    }
+    if (char === '/' && next === '*') {
+      blockComment = true
+      index += 1
+      continue
+    }
+    if (char === '\'' || char === '"' || char === '`') {
+      quote = char
+      continue
+    }
+    if (char === '[') depth += 1
+    if (char === ']') {
+      depth -= 1
+      if (depth === 0) return source.slice(start, index + 1)
+    }
+  }
+
+  return ''
+}
+
 function scanRouteBlocks(source: string): RouteBlock[] {
   const routes: RouteBlock[] = []
+  const routesSource = routesArraySource(source)
 
-  for (let start = 0; start < source.length; start += 1) {
-    if (source[start] !== '{') continue
-    const end = findClosingBrace(source, start)
+  for (let start = 0; start < routesSource.length; start += 1) {
+    if (routesSource[start] !== '{') continue
+    const end = findClosingBrace(routesSource, start)
     if (end === -1) continue
 
-    const block = source.slice(start + 1, end)
+    const block = routesSource.slice(start + 1, end)
     const path = directProperty(block, 'path')
     const componentPath = directComponentPath(block)
     if (!path || !componentPath) continue
@@ -228,18 +283,23 @@ export function scanVueRouter(projectRoot: string): PageEntry[] {
     .find((candidate) => existsSync(candidate))
   if (!routerFile) throw new Error(`vue-router file not found under ${projectRoot}`)
 
+  const root = resolve(projectRoot)
   const routes = scanRouteBlocks(readFileSync(routerFile, 'utf8'))
-  return routes.map((route) => {
+  return routes.flatMap((route) => {
+    const file = resolve(routerFile, '..', route.componentPath)
+    const pathFromRoot = relative(root, file)
+    if (!pathFromRoot || pathFromRoot.startsWith('..') || isAbsolute(pathFromRoot)) return []
+
     const parent = routes
       .filter((candidate) => candidate.hasChildren && candidate.start < route.start && candidate.end > route.end)
       .sort((left, right) => right.start - left.start)[0]
 
-    return {
+    return [{
       path: route.path,
       ...(route.name ? { name: route.name } : {}),
-      file: resolve(routerFile, '..', route.componentPath),
+      file,
       component: basename(route.componentPath),
       ...(parent?.path === '/home' ? { layout: 'home-child' } : {}),
-    }
+    }]
   })
 }
