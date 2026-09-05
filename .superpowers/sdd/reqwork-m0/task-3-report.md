@@ -51,3 +51,7 @@ Pending at report-writing time; expected commit message: `feat(reqwork): expose 
 ## Concerns
 
 `npm.cmd run typecheck` remains intentionally red with client-side `TS18003` because `src/client` does not exist until Task 4. This is the explicitly documented Task 4 ordering concern. The required host-only compile (`npx.cmd tsc -p tsconfig.json`) is green. `knsearch_web` was only read by scanner tests and was not modified.
+
+## Post-review cleanup
+
+The untracked `dist/` directory from the Task 1 zero-configuration `tsdown` probe was deleted and `dist/` was added to `.gitignore`. This generated output is excluded from subsequent worktrees.
