@@ -6,5 +6,5 @@
     "allowImportingTsExtensions": false, "noEmitOnError": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["src/client/**/*.tsx", "test/**"]
+  "exclude": ["src/client/**", "test/**"]
 }
