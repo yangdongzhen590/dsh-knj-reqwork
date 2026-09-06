@@ -21,26 +21,37 @@ export function apply(ctx: ReqworkClientContext): (() => void) | undefined {
   return applyGuard(() => {
     const controller = createController()
     const mount = mountReqworkPanel(controller)
+    let entryDispose: (() => void) | undefined
+    let disposed = false
+    const dispose = (): void => {
+      if (disposed) return
+      disposed = true
+      try { entryDispose?.() } catch (error) { console.warn('[dsh-knj-reqwork] menu disposer failed:', error) }
+      mount.dispose()
+      clearMenuStyle()
+      clearPanelStyle()
+    }
+
     try {
       const toggle = (): void => {
         if (controller.isOpen()) controller.close()
         else controller.open()
       }
       const slots = ctx?.slots
-      const entryDispose = typeof slots?.inject === 'function'
-        ? slots.inject('knj.menu.item', () => registerMenuEntry(slots, toggle))
+      entryDispose = typeof slots?.inject === 'function'
+        ? slots.inject('knj.menu.item', () => {
+          try {
+            return registerMenuEntry(slots, toggle)
+          } catch (error) {
+            dispose()
+            throw error
+          }
+        })
         : registerMenuEntry(slots, toggle)
 
-      return () => {
-        try { entryDispose() } catch (error) { console.warn('[dsh-knj-reqwork] menu disposer failed:', error) }
-        mount.dispose()
-        clearMenuStyle()
-        clearPanelStyle()
-      }
+      return dispose
     } catch (error) {
-      mount.dispose()
-      clearMenuStyle()
-      clearPanelStyle()
+      dispose()
       throw error
     }
   })

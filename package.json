@@ -10,7 +10,7 @@
   "engines": { "node": ">=20" },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
-    "client": { "inject": ["locale", "slots", "sessions", "workspaces"], "platform": "web" }
+    "client": { "inject": ["slots"], "platform": "web" }
   },
   "exports": {
     ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" },
